@@ -1,0 +1,55 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: merch
+      POSTGRES_USER: merch
+      POSTGRES_PASSWORD: merch
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - merch-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merch -d merch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      target: build
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://merch:merch@database:5432/merch?schema=public
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID}
+      ENTRA_AUDIENCE: ${ENTRA_AUDIENCE}
+      ENTRA_STAFF_ROLE: ${ENTRA_STAFF_ROLE:-STAFF}
+      ENTRA_STUDENT_ROLE: ${ENTRA_STUDENT_ROLE:-STUDENT}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/project/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  merch-postgres:

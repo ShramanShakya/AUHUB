@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  STAFF
+}
+
+enum OrderStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id         String   @id @default(uuid()) @db.Uuid
+  externalId String   @unique
+  email      String   @unique
+  name       String
+  role       Role     @default(STUDENT)
+  orders     Order[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([role])
+}
+
+model Product {
+  id             String      @id @default(uuid()) @db.Uuid
+  sku            String      @unique
+  name           String
+  description    String
+  seoDescription String?
+  category       String
+  department     String
+  price          Int
+  stockQuantity  Int
+  isActive       Boolean     @default(true)
+  orderItems     OrderItem[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([isActive, category])
+  @@index([department])
+}
+
+model Order {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @db.Uuid
+  user      User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subtotal  Int
+  total     Int
+  status    OrderStatus @default(CONFIRMED)
+  items     OrderItem[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid()) @db.Uuid
+  orderId   String  @db.Uuid
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  productId String  @db.Uuid
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int
+  unitPrice Int
+  subtotal  Int
+
+  @@index([orderId])
+  @@index([productId])
+}
