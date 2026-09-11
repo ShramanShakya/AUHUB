@@ -33,7 +33,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -43,7 +44,8 @@ button {
 
 button:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+select:focus-visible {
   outline: 3px solid rgba(236, 118, 91, 0.45);
   outline-offset: 3px;
 }
@@ -1053,7 +1055,8 @@ textarea:focus-visible {
 }
 
 .form-grid input,
-.form-grid textarea {
+.form-grid textarea,
+.form-grid select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 3px 3px 10px 3px;
@@ -1067,7 +1070,8 @@ textarea:focus-visible {
 }
 
 .form-grid input:focus,
-.form-grid textarea:focus {
+.form-grid textarea:focus,
+.form-grid select:focus {
   border-color: var(--green-2);
   box-shadow: 0 0 0 3px rgba(36, 92, 80, 0.1);
 }
@@ -1078,6 +1082,18 @@ textarea:focus-visible {
 
 .form-grid__wide {
   grid-column: 1 / -1;
+}
+
+.description-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .empty-state {

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   merchApi,
+  type Category,
   type Product,
   type ProductInput,
   type Order,
@@ -30,6 +31,7 @@ export default function App() {
   const { account, isStaff, signIn, signOut, getAccessToken } = useAuth();
   const [view, setView] = useState<View>("shop");
   const [products, setProducts] = useState<Product[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
@@ -57,8 +59,12 @@ export default function App() {
     if (blockedAccountRef.current === accountId) return;
     setLoading(true);
     try {
-      const token = await getAccessToken();
-      setProducts(await merchApi.listProducts(token));
+      const [nextProducts, nextCategories] = await Promise.all([
+        merchApi.listProducts(),
+        merchApi.listCategories(),
+      ]);
+      setProducts(nextProducts);
+      setAvailableCategories(nextCategories);
       loadedAccountRef.current = accountId;
       blockedAccountRef.current = null;
     } catch (error) {
@@ -84,19 +90,19 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.homeAccountId]);
 
-  const categories = useMemo(
-    () => ["ALL", ...new Set(products.map((product) => product.category))],
+  const categoryFilters = useMemo(
+    () => ["ALL", ...new Set(products.map((product) => product.category.name))],
     [products],
   );
   const visibleProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return products.filter(
       (product) =>
-        (category === "ALL" || product.category === category) &&
+        (category === "ALL" || product.category.name === category) &&
         (!query ||
           product.name.toLowerCase().includes(query) ||
-          product.description.toLowerCase().includes(query) ||
-          product.department.toLowerCase().includes(query)),
+          (product.description ?? "").toLowerCase().includes(query) ||
+          product.category.name.toLowerCase().includes(query)),
     );
   }, [category, products, search]);
   const cartLines = useMemo(
@@ -130,7 +136,7 @@ export default function App() {
       ...current,
       [product.id]: Math.min(
         (current[product.id] ?? 0) + 1,
-        product.stockQuantity,
+        product.stock,
       ),
     }));
     setCartOpen(true);
@@ -183,17 +189,27 @@ export default function App() {
     }
   }
 
-  async function generateDescription(product: Product) {
-    setBusyAction(`generate-${product.id}`);
+  async function generateDescription(
+    name: string,
+    category: string,
+  ): Promise<string | null> {
+    setBusyAction("generate-description");
     try {
       const token = await getAccessToken();
-      const updated = await merchApi.generateDescription(token, product.id);
-      setProducts((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-      tell("good", `A fresh description is ready for ${product.name}.`);
+      const result = await merchApi.generateDescription(token, {
+        name,
+        category,
+      });
+      tell("good", "Gemini generated a description. Review it before saving.");
+      return result.description;
     } catch (error) {
-      tell("bad", error instanceof Error ? error.message : "Description could not be generated.");
+      tell(
+        "bad",
+        error instanceof Error
+          ? error.message
+          : "The description could not be generated.",
+      );
+      return null;
     } finally {
       setBusyAction(null);
     }
@@ -328,9 +344,12 @@ export default function App() {
       )}
       {view === "admin" && isStaff && (
         <AdminPanel
+          categories={availableCategories}
+          generating={busyAction === "generate-description"}
           saving={busyAction === "create"}
           onBack={() => setView("shop")}
           onCreate={createProduct}
+          onGenerateDescription={generateDescription}
         />
       )}
       {view === "shop" && (
@@ -345,7 +364,7 @@ export default function App() {
           <section className="catalog page-shell">
             <div className="catalog-tools">
               <div className="category-tabs" aria-label="Product categories">
-                {categories.map((item) => (
+                {categoryFilters.map((item) => (
                   <button
                     className={category === item ? "is-active" : ""}
                     key={item}
@@ -386,7 +405,6 @@ export default function App() {
                     isStaff={isStaff}
                     busyAction={busyAction}
                     onAdd={addToCart}
-                    onGenerate={(item) => void generateDescription(item)}
                     onDeactivate={(item) => void deactivateProduct(item)}
                   />
                 ))}

@@ -65,7 +65,7 @@ export function CartDrawer({
               {lines.map(({ product, quantity }) => (
                 <div className="cart-line" key={product.id}>
                   <div className="cart-line__art">
-                    {product.category.slice(0, 2)}
+                    {product.category.name.slice(0, 2)}
                   </div>
                   <div className="cart-line__details">
                     <strong>{product.name}</strong>
@@ -81,7 +81,7 @@ export function CartDrawer({
                       <span>{quantity}</span>
                       <button
                         type="button"
-                        disabled={quantity >= product.stockQuantity}
+                        disabled={quantity >= product.stock}
                         onClick={() => onQuantity(product.id, quantity + 1)}
                         aria-label={`Add one ${product.name}`}
                       >

@@ -1,4 +1,4 @@
-import { PackageX, Plus, Sparkles, Trash2 } from "lucide-react";
+import { PackageX, Plus, Trash2 } from "lucide-react";
 import type { Product } from "../api";
 import { formatMoney, titleCase } from "../format";
 
@@ -7,7 +7,6 @@ interface ProductCardProps {
   isStaff: boolean;
   busyAction: string | null;
   onAdd: (product: Product) => void;
-  onGenerate: (product: Product) => void;
   onDeactivate: (product: Product) => void;
 }
 
@@ -16,28 +15,27 @@ export function ProductCard({
   isStaff,
   busyAction,
   onAdd,
-  onGenerate,
   onDeactivate,
 }: ProductCardProps) {
-  const soldOut = product.stockQuantity === 0;
-  const initials = product.category.slice(0, 2).toUpperCase();
+  const soldOut = product.stock === 0;
+  const initials = product.category.name.slice(0, 2).toUpperCase();
 
   return (
     <article className="product-card">
-      <div className={`product-art art-${product.category.length % 4}`}>
+      <div className={`product-art art-${product.category.name.length % 4}`}>
         <span className="product-art__department">
-          {titleCase(product.department)}
+          {titleCase(product.category.name)}
         </span>
         <strong aria-hidden="true">{initials}</strong>
         <span className="product-art__stamp">Campus edition</span>
       </div>
       <div className="product-card__body">
         <div className="product-card__eyebrow">
-          <span>{titleCase(product.category)}</span>
-          <span>{product.stockQuantity} left</span>
+          <span>{titleCase(product.category.name)}</span>
+          <span>{product.stock} left</span>
         </div>
         <h3>{product.name}</h3>
-        <p>{product.seoDescription ?? product.description}</p>
+        <p>{product.description ?? "Official university merchandise."}</p>
         <div className="product-card__footer">
           <strong>{formatMoney(product.price)}</strong>
           <button
@@ -52,16 +50,6 @@ export function ProductCard({
         </div>
         {isStaff && (
           <div className="staff-actions" aria-label="Staff product actions">
-            <button
-              type="button"
-              disabled={busyAction === `generate-${product.id}`}
-              onClick={() => onGenerate(product)}
-            >
-              <Sparkles size={15} />
-              {busyAction === `generate-${product.id}`
-                ? "Writing…"
-                : "Write description"}
-            </button>
             <button
               className="danger-link"
               type="button"

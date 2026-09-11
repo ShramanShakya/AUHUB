@@ -1,51 +1,67 @@
 import { ArrowLeft, PackagePlus, WandSparkles } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import type { ProductInput } from "../api";
+import type { Category, ProductInput } from "../api";
 import { currencyCode, toMinorUnits } from "../format";
 
 interface AdminPanelProps {
   saving: boolean;
+  generating: boolean;
+  categories: Category[];
   onBack: () => void;
   onCreate: (input: ProductInput) => Promise<void>;
+  onGenerateDescription: (
+    name: string,
+    category: string,
+  ) => Promise<string | null>;
 }
 
 const initialForm = {
-  sku: "",
   name: "",
   description: "",
-  category: "",
-  department: "",
+  categoryId: "",
   price: "",
-  stockQuantity: "",
+  stock: "",
 };
-
-function normalizeCode(value: string): string {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-}
 
 export function AdminPanel({
   saving,
+  generating,
+  categories,
   onBack,
   onCreate,
+  onGenerateDescription,
 }: AdminPanelProps) {
   const [form, setForm] = useState(initialForm);
+
+  const selectedCategory = categories.find(
+    (category) => category.id === form.categoryId,
+  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await onCreate({
-      sku: form.sku.trim(),
       name: form.name.trim(),
       description: form.description.trim(),
-      category: normalizeCode(form.category),
-      department: normalizeCode(form.department),
       price: toMinorUnits(Number(form.price)),
-      stockQuantity: Number(form.stockQuantity),
+      stock: Number(form.stock),
+      categoryId: form.categoryId,
     });
     setForm(initialForm);
   }
 
   function field(name: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function generateDescription() {
+    if (!form.name.trim() || !selectedCategory) return;
+
+    const description = await onGenerateDescription(
+      form.name.trim(),
+      selectedCategory.name,
+    );
+
+    if (description) field("description", description);
   }
 
   return (
@@ -59,16 +75,12 @@ export function AdminPanel({
           <h1>Add the next campus favorite.</h1>
           <p>
             Start with the honest details. Gemini can help shape the polished
-            description after the product is saved.
+            description after you enter a product name and category.
           </p>
           <div className="admin-note">
-            <WandSparkles />
             <div>
               <strong>A small writing tip</strong>
-              <span>
-                Mention fit, material, or intended use only when you know it is
-                accurate.
-              </span>
+              <span>Mention fit, material, or intended use only when it is accurate.</span>
             </div>
           </div>
         </section>
@@ -93,32 +105,17 @@ export function AdminPanel({
               />
             </label>
             <label>
-              SKU
-              <input
-                required
-                maxLength={64}
-                value={form.sku}
-                onChange={(event) => field("sku", event.target.value)}
-                placeholder="CS-JACKET-001"
-              />
-            </label>
-            <label>
               Category
-              <input
+              <select
                 required
-                value={form.category}
-                onChange={(event) => field("category", event.target.value)}
-                placeholder="Jackets"
-              />
-            </label>
-            <label>
-              Department
-              <input
-                required
-                value={form.department}
-                onChange={(event) => field("department", event.target.value)}
-                placeholder="Computer Science"
-              />
+                value={form.categoryId}
+                onChange={(event) => field("categoryId", event.target.value)}
+              >
+                <option value="">Select a category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
             </label>
             <label>
               Price ({currencyCode})
@@ -139,15 +136,31 @@ export function AdminPanel({
                 min="0"
                 step="1"
                 type="number"
-                value={form.stockQuantity}
+                value={form.stock}
                 onChange={(event) =>
-                  field("stockQuantity", event.target.value)
+                  field("stock", event.target.value)
                 }
                 placeholder="25"
               />
             </label>
+            <div className="description-actions form-grid__wide">
+              <span>Product description</span>
+              <button
+                className="button button--small"
+                disabled={
+                  saving ||
+                  generating ||
+                  !form.name.trim() ||
+                  !selectedCategory
+                }
+                type="button"
+                onClick={() => void generateDescription()}
+              >
+                <WandSparkles size={16} />
+                {generating ? "Generating…" : "Generate with AI"}
+              </button>
+            </div>
             <label className="form-grid__wide">
-              Plain description
               <textarea
                 required
                 maxLength={2000}
