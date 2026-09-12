@@ -11,21 +11,21 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { authApi, type AuthSession, type User } from "./api";
 
 const clientId = import.meta.env.VITE_ENTRA_CLIENT_ID as string | undefined;
 const tenantId = import.meta.env.VITE_ENTRA_TENANT_ID as string | undefined;
-const apiScope = import.meta.env.VITE_ENTRA_API_SCOPE as string | undefined;
-const staffRole = (import.meta.env.VITE_ENTRA_STAFF_ROLE as string | undefined) ??
-  "STAFF";
+const loginScopes = ["openid", "profile", "email"];
+const sessionKey = "au-merchhub-session";
 
-export const authConfigured = Boolean(clientId && tenantId && apiScope);
+export const authConfigured = Boolean(clientId && tenantId);
 
 export const authClient = new PublicClientApplication({
   auth: {
     clientId: clientId ?? "00000000-0000-0000-0000-000000000000",
     authority: `https://login.microsoftonline.com/${tenantId ?? "common"}`,
-    redirectUri: `${window.location.origin}/store/`,
-    postLogoutRedirectUri: `${window.location.origin}/store/`,
+    redirectUri: window.location.origin,
+    postLogoutRedirectUri: window.location.origin,
   },
   cache: {
     cacheLocation: "sessionStorage",
@@ -34,6 +34,7 @@ export const authClient = new PublicClientApplication({
 
 interface AuthContextValue {
   account: AccountInfo | null;
+  user: User | null;
   isStaff: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -42,18 +43,26 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function rolesFromToken(token: string): string[] {
+function readSession(): AuthSession | null {
+  try {
+    const raw = sessionStorage.getItem(sessionKey);
+    return raw ? (JSON.parse(raw) as AuthSession) : null;
+  } catch {
+    sessionStorage.removeItem(sessionKey);
+    return null;
+  }
+}
+
+function tokenNeedsRefresh(token: string): boolean {
   try {
     const encodedPayload = token.split(".")[1];
-    if (!encodedPayload) return [];
+    if (!encodedPayload) return true;
     const payload = JSON.parse(
       atob(encodedPayload.replace(/-/g, "+").replace(/_/g, "/")),
-    ) as { roles?: unknown };
-    return Array.isArray(payload.roles)
-      ? payload.roles.filter((role): role is string => typeof role === "string")
-      : [];
+    ) as { exp?: number };
+    return typeof payload.exp !== "number" || payload.exp * 1000 < Date.now() + 60_000;
   } catch {
-    return [];
+    return true;
   }
 }
 
@@ -62,67 +71,83 @@ export function AuthProvider({
   children,
 }: PropsWithChildren<{ initialResult: AuthenticationResult | null }>) {
   const [account, setAccount] = useState<AccountInfo | null>(
-    initialResult?.account ?? authClient.getActiveAccount() ??
+    initialResult?.account ??
+      authClient.getActiveAccount() ??
       authClient.getAllAccounts()[0] ??
       null,
   );
-  const [isStaff, setIsStaff] = useState(() =>
-    initialResult ? rolesFromToken(initialResult.accessToken).includes(staffRole) : false,
-  );
+  const [session, setSession] = useState<AuthSession | null>(() => readSession());
 
-  const rememberResult = useCallback((result: AuthenticationResult) => {
+  const rememberMicrosoftResult = useCallback((result: AuthenticationResult) => {
     authClient.setActiveAccount(result.account);
-    const nextIsStaff = rolesFromToken(result.accessToken).includes(staffRole);
-    setAccount((current) =>
-      current?.homeAccountId === result.account.homeAccountId
-        ? current
-        : result.account,
-    );
-    setIsStaff((current) => (current === nextIsStaff ? current : nextIsStaff));
+    setAccount(result.account);
+  }, []);
+
+  const exchangeToken = useCallback(async (idToken: string) => {
+    const nextSession = await authApi.microsoft(idToken);
+    sessionStorage.setItem(sessionKey, JSON.stringify(nextSession));
+    setSession(nextSession);
+    return nextSession.accessToken;
   }, []);
 
   const signIn = useCallback(async () => {
-    if (!authConfigured || !apiScope) {
+    if (!authConfigured) {
       throw new Error("Microsoft Entra sign-in is not configured.");
     }
     const result = await authClient.loginPopup({
-      scopes: [apiScope],
+      scopes: loginScopes,
       prompt: "select_account",
     });
-    rememberResult(result);
-  }, [rememberResult]);
+    rememberMicrosoftResult(result);
+    await exchangeToken(result.idToken);
+  }, [exchangeToken, rememberMicrosoftResult]);
 
   const signOut = useCallback(async () => {
+    sessionStorage.removeItem(sessionKey);
+    setSession(null);
     await authClient.logoutPopup({ account: account ?? undefined });
     setAccount(null);
-    setIsStaff(false);
   }, [account]);
 
   const getAccessToken = useCallback(async () => {
+    if (session && !tokenNeedsRefresh(session.accessToken)) {
+      return session.accessToken;
+    }
+
     const activeAccount =
       account ?? authClient.getActiveAccount() ?? authClient.getAllAccounts()[0];
-    if (!activeAccount || !apiScope) {
+    if (!activeAccount) {
       throw new Error("Sign in to continue.");
     }
+
     try {
       const result = await authClient.acquireTokenSilent({
         account: activeAccount,
-        scopes: [apiScope],
+        scopes: loginScopes,
       });
-      return result.accessToken;
+      rememberMicrosoftResult(result);
+      return exchangeToken(result.idToken);
     } catch {
       const result = await authClient.acquireTokenPopup({
         account: activeAccount,
-        scopes: [apiScope],
+        scopes: loginScopes,
       });
-      rememberResult(result);
-      return result.accessToken;
+      rememberMicrosoftResult(result);
+      return exchangeToken(result.idToken);
     }
-  }, [account, rememberResult]);
+  }, [account, exchangeToken, rememberMicrosoftResult, session]);
 
+  const isStaff = session?.user.role === "STAFF" || session?.user.role === "ADMIN";
   const value = useMemo(
-    () => ({ account, isStaff, signIn, signOut, getAccessToken }),
-    [account, getAccessToken, isStaff, signIn, signOut],
+    () => ({
+      account,
+      user: session?.user ?? null,
+      isStaff,
+      signIn,
+      signOut,
+      getAccessToken,
+    }),
+    [account, getAccessToken, isStaff, session?.user, signIn, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
