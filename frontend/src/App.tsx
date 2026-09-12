@@ -87,7 +87,6 @@ export default function App() {
     if (loadedAccountRef.current === account.homeAccountId) return;
     void loadProducts();
     // Reload only when the signed-in user changes, not on every auth callback identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.homeAccountId]);
 
   const categoryFilters = useMemo(
