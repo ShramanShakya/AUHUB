@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import type { Category, ProductInput } from "../api";
 import { currencyCode, toMinorUnits } from "../format";
 
-interface AdminPanelProps {
+interface StaffPanelProps {
   saving: boolean;
   generating: boolean;
   categories: Category[];
@@ -23,14 +23,14 @@ const initialForm = {
   stock: "",
 };
 
-export function AdminPanel({
+export function StaffPanel({
   saving,
   generating,
   categories,
   onBack,
   onCreate,
   onGenerateDescription,
-}: AdminPanelProps) {
+}: StaffPanelProps) {
   const [form, setForm] = useState(initialForm);
 
   const selectedCategory = categories.find(

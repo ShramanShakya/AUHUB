@@ -3,6 +3,7 @@ const apiBaseUrl = (
 ).replace(/\/$/, "");
 
 export type Role = "STUDENT" | "STAFF" | "ADMIN";
+export type OrderStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 export interface GenerateDescriptionInput {
   name: string;
   category: string;
@@ -16,6 +17,11 @@ export interface User {
   email: string;
   displayName: string | null;
   role: Role;
+}
+
+export interface AdminUser extends User {
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuthSession {
@@ -43,8 +49,13 @@ export interface Product {
 export interface Order {
   id: string;
   total: number;
-  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+  status: OrderStatus;
   createdAt: string;
+  student?: {
+    id: string;
+    email: string;
+    displayName: string | null;
+  };
   items: Array<{
     id: string;
     quantity: number;
@@ -71,6 +82,7 @@ interface ApiOrder {
   totalPrice: string | number;
   status: Order["status"];
   createdAt: string;
+  student?: Order["student"];
   items: Array<{
     id: string;
     quantity: number;
@@ -137,6 +149,7 @@ function normalizeOrder(order: ApiOrder): Order {
     total: Number(order.totalPrice),
     status: order.status,
     createdAt: order.createdAt,
+    student: order.student,
     items: order.items.map((item) => ({
       ...item,
       unitPrice: Number(item.unitPrice),
@@ -150,6 +163,34 @@ export const authApi = {
     apiRequest<AuthSession>("/api/auth/microsoft", undefined, {
       method: "POST",
       body: JSON.stringify({ idToken }),
+    }),
+};
+
+export const adminApi = {
+  listUsers: (token: string) =>
+    apiRequest<AdminUser[]>("/api/admin/users", token),
+
+  updateUserRole: (token: string, userId: string, role: Role) =>
+    apiRequest<AdminUser>(`/api/admin/users/${userId}/role`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+
+  createCategory: (token: string, name: string) =>
+    apiRequest<Category>("/api/categories", token, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+
+  updateCategory: (token: string, categoryId: string, name: string) =>
+    apiRequest<Category>(`/api/categories/${categoryId}`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteCategory: (token: string, categoryId: string) =>
+    apiRequest<void>(`/api/categories/${categoryId}`, token, {
+      method: "DELETE",
     }),
 };
 
@@ -199,5 +240,20 @@ export const merchApi = {
   listOrders: async (token: string) =>
     (await apiRequest<ApiOrder[]>("/api/orders/mine", token)).map(
       normalizeOrder,
+    ),
+
+  listAllOrders: async (token: string) =>
+    (await apiRequest<ApiOrder[]>("/api/orders", token)).map(normalizeOrder),
+
+  updateOrderStatus: async (
+    token: string,
+    orderId: string,
+    status: Exclude<OrderStatus, "PENDING">,
+  ) =>
+    normalizeOrder(
+      await apiRequest<ApiOrder>(`/api/orders/${orderId}/status`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
     ),
 };

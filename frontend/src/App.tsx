@@ -13,26 +13,42 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
+  adminApi,
   merchApi,
+  type AdminUser,
   type Category,
   type Product,
   type ProductInput,
   type Order,
+  type OrderStatus,
+  type Role,
 } from "./api";
 import { useAuth } from "./auth";
-import { AdminPanel } from "./components/AdminPanel";
+import { AdminConsole } from "./components/AdminConsole";
+import { StaffPanel } from "./components/AdminPanel";
 import { CartDrawer, type CartLine } from "./components/CartDrawer";
 import { OrdersView } from "./components/OrdersView";
 import { ProductCard } from "./components/ProductCard";
+import { StaffOrdersView } from "./components/StaffOrdersView";
 
-type View = "shop" | "orders" | "admin";
+type View = "shop" | "orders" | "staff" | "staff-orders" | "admin";
 
 export default function App() {
-  const { account, isStaff, signIn, signOut, getAccessToken } = useAuth();
+  const {
+    account,
+    user,
+    isAdmin,
+    canManageCatalog,
+    signIn,
+    signOut,
+    getAccessToken,
+  } = useAuth();
   const [view, setView] = useState<View>("shop");
   const [products, setProducts] = useState<Product[]>([]);
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [staffOrders, setStaffOrders] = useState<Order[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -40,6 +56,8 @@ export default function App() {
   const [category, setCategory] = useState("ALL");
   const [loading, setLoading] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [staffOrdersLoading, setStaffOrdersLoading] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState<{
     tone: "good" | "bad";
@@ -130,6 +148,39 @@ export default function App() {
     }
   }
 
+  async function enterAdmin() {
+    setView("admin");
+    setMenuOpen(false);
+    setAdminLoading(true);
+    try {
+      const token = await getAccessToken();
+      const [users, categories] = await Promise.all([
+        adminApi.listUsers(token),
+        merchApi.listCategories(),
+      ]);
+      setAdminUsers(users);
+      setAvailableCategories(categories);
+    } catch (error) {
+      tell("bad", error instanceof Error ? error.message : "Could not load admin data.");
+    } finally {
+      setAdminLoading(false);
+    }
+  }
+
+  async function enterStaffOrders() {
+    setView("staff-orders");
+    setMenuOpen(false);
+    setStaffOrdersLoading(true);
+    try {
+      const token = await getAccessToken();
+      setStaffOrders(await merchApi.listAllOrders(token));
+    } catch (error) {
+      tell("bad", error instanceof Error ? error.message : "Could not load customer orders.");
+    } finally {
+      setStaffOrdersLoading(false);
+    }
+  }
+
   function addToCart(product: Product) {
     setCart((current) => ({
       ...current,
@@ -183,6 +234,98 @@ export default function App() {
       await loadProducts();
     } catch (error) {
       tell("bad", error instanceof Error ? error.message : "Product could not be saved.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function createCategory(name: string) {
+    setBusyAction("create-category");
+    try {
+      const token = await getAccessToken();
+      const created = await adminApi.createCategory(token, name);
+      setAvailableCategories((current) =>
+        [...current, created].sort((left, right) => left.name.localeCompare(right.name)),
+      );
+      tell("good", "Category created.");
+    } catch (error) {
+      tell("bad", error instanceof Error ? error.message : "Category could not be created.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function renameCategory(categoryToRename: Category, name: string) {
+    setBusyAction(`category-${categoryToRename.id}`);
+    try {
+      const token = await getAccessToken();
+      const updated = await adminApi.updateCategory(token, categoryToRename.id, name);
+      setAvailableCategories((current) =>
+        current
+          .map((item) => (item.id === updated.id ? updated : item))
+          .sort((left, right) => left.name.localeCompare(right.name)),
+      );
+      setProducts((current) =>
+        current.map((product) =>
+          product.category.id === updated.id
+            ? { ...product, category: updated }
+            : product,
+        ),
+      );
+      tell("good", "Category renamed.");
+    } catch (error) {
+      tell("bad", error instanceof Error ? error.message : "Category could not be renamed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function deleteCategory(categoryToDelete: Category) {
+    setBusyAction(`category-${categoryToDelete.id}`);
+    try {
+      const token = await getAccessToken();
+      await adminApi.deleteCategory(token, categoryToDelete.id);
+      setAvailableCategories((current) =>
+        current.filter((item) => item.id !== categoryToDelete.id),
+      );
+      tell("good", "Category deleted.");
+    } catch (error) {
+      tell("bad", error instanceof Error ? error.message : "Category could not be deleted.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function changeUserRole(managedUser: AdminUser, role: Role) {
+    setBusyAction(`role-${managedUser.id}`);
+    try {
+      const token = await getAccessToken();
+      const updated = await adminApi.updateUserRole(token, managedUser.id, role);
+      setAdminUsers((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      tell("good", `${updated.displayName ?? updated.email} is now ${role.toLowerCase()}.`);
+    } catch (error) {
+      tell("bad", error instanceof Error ? error.message : "The user role could not be updated.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function updateOrderStatus(
+    order: Order,
+    status: Exclude<OrderStatus, "PENDING">,
+  ) {
+    setBusyAction(`order-${order.id}`);
+    try {
+      const token = await getAccessToken();
+      const updated = await merchApi.updateOrderStatus(token, order.id, status);
+      setStaffOrders((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      tell("good", `Order ${order.id.slice(0, 8).toUpperCase()} is now ${status.toLowerCase()}.`);
+    } catch (error) {
+      tell("bad", error instanceof Error ? error.message : "The order status could not be updated.");
     } finally {
       setBusyAction(null);
     }
@@ -304,23 +447,33 @@ export default function App() {
             <button type="button" onClick={() => { setView("shop"); setMenuOpen(false); }}>
               Collection
             </button>
-            {!isStaff && (
+            {!canManageCatalog && (
               <button type="button" onClick={() => void enterOrders()}>
                 My orders
               </button>
             )}
-            {isStaff && (
-              <button type="button" onClick={() => { setView("admin"); setMenuOpen(false); }}>
+            {canManageCatalog && (
+              <button type="button" onClick={() => { setView("staff"); setMenuOpen(false); }}>
                 Staff studio
+              </button>
+            )}
+            {canManageCatalog && (
+              <button type="button" onClick={() => void enterStaffOrders()}>
+                Order desk
+              </button>
+            )}
+            {isAdmin && (
+              <button type="button" onClick={() => void enterAdmin()}>
+                Admin console
               </button>
             )}
           </nav>
           <div className="header-actions">
             <span className="user-chip">
               {account.name?.split(" ")[0] ?? "Student"}
-              {isStaff && <small>Staff</small>}
+              {user && <small>{user.role}</small>}
             </span>
-            {!isStaff && (
+            {!canManageCatalog && (
               <button className="bag-button" type="button" onClick={() => setCartOpen(true)}>
                 <ShoppingBag size={20} />
                 <span className="sr-only">Open cart</span>
@@ -341,14 +494,37 @@ export default function App() {
       {view === "orders" && (
         <OrdersView orders={orders} loading={ordersLoading} onBack={() => setView("shop")} />
       )}
-      {view === "admin" && isStaff && (
-        <AdminPanel
+      {view === "staff" && canManageCatalog && (
+        <StaffPanel
           categories={availableCategories}
           generating={busyAction === "generate-description"}
           saving={busyAction === "create"}
           onBack={() => setView("shop")}
           onCreate={createProduct}
           onGenerateDescription={generateDescription}
+        />
+      )}
+      {view === "staff-orders" && canManageCatalog && (
+        <StaffOrdersView
+          orders={staffOrders}
+          loading={staffOrdersLoading}
+          busyAction={busyAction}
+          onBack={() => setView("shop")}
+          onUpdateStatus={updateOrderStatus}
+        />
+      )}
+      {view === "admin" && isAdmin && (
+        <AdminConsole
+          users={adminUsers}
+          categories={availableCategories}
+          currentUserId={user?.id ?? null}
+          loading={adminLoading}
+          busyAction={busyAction}
+          onBack={() => setView("shop")}
+          onCreateCategory={createCategory}
+          onRenameCategory={renameCategory}
+          onDeleteCategory={deleteCategory}
+          onChangeRole={changeUserRole}
         />
       )}
       {view === "shop" && (
@@ -401,7 +577,7 @@ export default function App() {
                   <ProductCard
                     key={product.id}
                     product={product}
-                    isStaff={isStaff}
+                    canManageCatalog={canManageCatalog}
                     busyAction={busyAction}
                     onAdd={addToCart}
                     onDeactivate={(item) => void deactivateProduct(item)}
@@ -413,7 +589,7 @@ export default function App() {
         </main>
       )}
 
-      {!isStaff && (
+      {!canManageCatalog && (
         <CartDrawer
           open={cartOpen}
           lines={cartLines}
