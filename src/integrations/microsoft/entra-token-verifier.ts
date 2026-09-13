@@ -1,4 +1,9 @@
-import { createRemoteJWKSet, decodeJwt, jwtVerify } from "jose";
+import {
+  createRemoteJWKSet,
+  decodeJwt,
+  jwtVerify,
+  type JWTPayload,
+} from "jose";
 import { Role } from "@prisma/client";
 import type { IdentityUser } from "../../repositories/user.repository.js";
 import { AppError } from "../../utils/app-error.js";
@@ -16,6 +21,14 @@ interface EntraTokenVerifierConfig {
 
 function claimAsString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function claimAsStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item: unknown): item is string => typeof item === "string",
+      )
+    : [];
 }
 
 function peekTokenClaims(token: string): Record<string, unknown> {
@@ -64,7 +77,7 @@ export class EntraTokenVerifier implements TokenVerifier {
   }
 
   async verify(token: string): Promise<IdentityUser> {
-    let payload;
+    let payload: JWTPayload;
     try {
       ({ payload } = await jwtVerify(token, this.jwks, {
         issuer: this.issuers,
@@ -96,10 +109,7 @@ export class EntraTokenVerifier implements TokenVerifier {
       claimAsString(payload.email) ??
       claimAsString(payload.upn) ??
       claimAsString(payload.unique_name);
-    const name = claimAsString(payload.name) ?? email ?? externalId;
-    const roles = Array.isArray(payload.roles)
-      ? payload.roles.filter((role): role is string => typeof role === "string")
-      : [];
+    const roles = claimAsStringArray(payload.roles);
 
     if (!externalId || !email) {
       if (process.env.NODE_ENV !== "production") {
@@ -115,6 +125,8 @@ export class EntraTokenVerifier implements TokenVerifier {
         "The access token is missing required identity claims.",
       );
     }
+
+    const name = claimAsString(payload.name) ?? email;
 
     let role: Role;
     if (roles.includes(this.config.staffRole)) {

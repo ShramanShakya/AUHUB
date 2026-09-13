@@ -7,7 +7,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -36,6 +38,8 @@ interface AuthContextValue {
   account: AccountInfo | null;
   user: User | null;
   isStaff: boolean;
+  isAdmin: boolean;
+  canManageCatalog: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   getAccessToken: () => Promise<string>;
@@ -77,6 +81,7 @@ export function AuthProvider({
       null,
   );
   const [session, setSession] = useState<AuthSession | null>(() => readSession());
+  const synchronizedAccountRef = useRef<string | null>(null);
 
   const rememberMicrosoftResult = useCallback((result: AuthenticationResult) => {
     authClient.setActiveAccount(result.account);
@@ -109,6 +114,18 @@ export function AuthProvider({
     setAccount(null);
   }, [account]);
 
+  useEffect(() => {
+    if (!account || synchronizedAccountRef.current === account.homeAccountId) return;
+    synchronizedAccountRef.current = account.homeAccountId;
+
+    void authClient
+      .acquireTokenSilent({ account, scopes: loginScopes })
+      .then((result) => exchangeToken(result.idToken))
+      .catch(() => {
+        synchronizedAccountRef.current = null;
+      });
+  }, [account, exchangeToken]);
+
   const getAccessToken = useCallback(async () => {
     if (session && !tokenNeedsRefresh(session.accessToken)) {
       return session.accessToken;
@@ -137,17 +154,30 @@ export function AuthProvider({
     }
   }, [account, exchangeToken, rememberMicrosoftResult, session]);
 
-  const isStaff = session?.user.role === "STAFF" || session?.user.role === "ADMIN";
+  const isStaff = session?.user.role === "STAFF";
+  const isAdmin = session?.user.role === "ADMIN";
+  const canManageCatalog = isStaff || isAdmin;
   const value = useMemo(
     () => ({
       account,
       user: session?.user ?? null,
       isStaff,
+      isAdmin,
+      canManageCatalog,
       signIn,
       signOut,
       getAccessToken,
     }),
-    [account, getAccessToken, isStaff, session?.user, signIn, signOut],
+    [
+      account,
+      canManageCatalog,
+      getAccessToken,
+      isAdmin,
+      isStaff,
+      session?.user,
+      signIn,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

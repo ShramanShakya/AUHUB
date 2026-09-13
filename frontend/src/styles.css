@@ -120,6 +120,14 @@ select:focus-visible {
   font-size: 0.8rem;
 }
 
+.button--danger {
+  padding: 9px 15px;
+  color: #8c3428;
+  background: #f4ded7;
+  box-shadow: none;
+  font-size: 0.8rem;
+}
+
 .button--wide {
   width: 100%;
 }
@@ -880,7 +888,8 @@ select:focus-visible {
 }
 
 .orders-page,
-.admin-page {
+.admin-page,
+.admin-console {
   padding-block: 48px 100px;
 }
 
@@ -970,6 +979,152 @@ select:focus-visible {
 .order-card__total strong {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.3rem;
+}
+
+.order-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+
+.admin-console__header {
+  max-width: 760px;
+  margin: 55px 0 38px;
+}
+
+.admin-console__header h1 {
+  max-width: 700px;
+  margin: 8px 0 14px;
+  font-size: clamp(2.8rem, 5vw, 4.7rem);
+}
+
+.admin-console__header p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.6;
+}
+
+.admin-console__grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.management-panel {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 5px 5px 22px 5px;
+  padding: clamp(22px, 3vw, 32px);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.management-panel__heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 24px;
+}
+
+.management-panel__heading > svg {
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--green);
+}
+
+.management-panel__heading h2 {
+  margin: 3px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.55rem;
+}
+
+.management-list {
+  display: grid;
+  max-height: 520px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.management-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-block: 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.management-row > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.management-row span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+}
+
+.management-row select,
+.category-create input {
+  border: 1px solid var(--line);
+  border-radius: 3px 3px 10px 3px;
+  padding: 10px 12px;
+  outline: 0;
+  color: var(--ink);
+  background: #faf7f0;
+}
+
+.management-actions {
+  display: flex !important;
+  grid-auto-flow: column;
+  gap: 12px !important;
+}
+
+.management-actions button {
+  border: 0;
+  padding: 0;
+  color: var(--green-2);
+  background: none;
+  font-size: 0.72rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.management-actions .danger-link {
+  color: #a34838;
+}
+
+.management-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.management-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.category-create {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
 .admin-layout {
@@ -1182,6 +1337,10 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .admin-console__grid {
+    grid-template-columns: 1fr;
+  }
+
   .admin-intro {
     position: static;
     max-width: 650px;
@@ -1333,6 +1492,28 @@ select:focus-visible {
 
   .orders-header {
     margin-top: 45px;
+  }
+
+  .order-actions,
+  .management-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .order-actions .button {
+    width: 100%;
+  }
+
+  .management-row select {
+    width: 100%;
+  }
+
+  .management-actions {
+    flex-direction: row;
+  }
+
+  .category-create {
+    grid-template-columns: 1fr;
   }
 }
 

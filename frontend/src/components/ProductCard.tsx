@@ -4,7 +4,7 @@ import { formatMoney, titleCase } from "../format";
 
 interface ProductCardProps {
   product: Product;
-  isStaff: boolean;
+  canManageCatalog: boolean;
   busyAction: string | null;
   onAdd: (product: Product) => void;
   onDeactivate: (product: Product) => void;
@@ -12,7 +12,7 @@ interface ProductCardProps {
 
 export function ProductCard({
   product,
-  isStaff,
+  canManageCatalog,
   busyAction,
   onAdd,
   onDeactivate,
@@ -48,7 +48,7 @@ export function ProductCard({
             {soldOut ? "Sold out" : "Add"}
           </button>
         </div>
-        {isStaff && (
+        {canManageCatalog && (
           <div className="staff-actions" aria-label="Staff product actions">
             <button
               className="danger-link"
