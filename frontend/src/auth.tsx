@@ -19,6 +19,7 @@ const clientId = import.meta.env.VITE_ENTRA_CLIENT_ID as string | undefined;
 const tenantId = import.meta.env.VITE_ENTRA_TENANT_ID as string | undefined;
 const loginScopes = ["openid", "profile", "email"];
 const sessionKey = "au-merchhub-session";
+const productionRedirectUri = `${window.location.origin}/merchhub/`;
 
 export const authConfigured = Boolean(clientId && tenantId);
 
@@ -26,8 +27,10 @@ export const authClient = new PublicClientApplication({
   auth: {
     clientId: clientId ?? "00000000-0000-0000-0000-000000000000",
     authority: `https://login.microsoftonline.com/${tenantId ?? "common"}`,
-    redirectUri: window.location.origin,
-    postLogoutRedirectUri: window.location.origin,
+    redirectUri: import.meta.env.DEV ? window.location.origin : productionRedirectUri,
+    postLogoutRedirectUri: import.meta.env.DEV
+      ? window.location.origin
+      : productionRedirectUri,
   },
   cache: {
     cacheLocation: "sessionStorage",
