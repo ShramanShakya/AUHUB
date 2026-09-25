@@ -94,3 +94,7 @@ Production secrets are loaded from Azure Key Vault. The vault must contain:
 Set non-secret Entra and runtime configuration in the deployment environment. Build the API image from the `runtime` target, the storefront from `frontend-build`, and run migrations once per release using the `migrate` target. Copy the storefront assets to `/var/www/university-merch-store/`. Add `deploy/nginx/university-merch.conf` to the existing HTTPS server block without changing `/content` or `/api`.
 
 See `.cursor/guides/deployment.md` and `docs/SECURITY.md` before deploying.
+
+
+## Frontend repo
+https://au-merchhub-2026.koreacentral.cloudapp.azure.com/merchhub/
