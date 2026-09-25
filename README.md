@@ -97,4 +97,4 @@ See `.cursor/guides/deployment.md` and `docs/SECURITY.md` before deploying.
 
 
 ## Frontend repo
-https://au-merchhub-2026.koreacentral.cloudapp.azure.com/merchhub/
+https://github.com/ShramanShakya/AUHUB
